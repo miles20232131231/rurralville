@@ -1,90 +1,86 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, SlashCommandBuilder } = require('discord.js');
 const path = require('path');
 const fs = require('fs');
 
 const dataFolderPath = path.join(__dirname, '../../data/vehicleData');
-const policeRecordsDirPath = path.join(__dirname, '../../data/policeRecords');
-const licensesDirPath = path.join(__dirname, '../../data/licenses');
 const ticketsDirPath = path.join(__dirname, '../../data/tickets');
+const licensesDirPath = path.join(__dirname, '../../data/licenses');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('profile')
-        .setDescription('Displays your or another user\'s profile.')
-        .addUserOption(option =>
+        .setDescription('View your profile or another user\'s profile.')
+        .addUserOption(option => 
             option.setName('user')
-                .setDescription('Select a user to view their profile. If not selected, shows your profile.')),
+                .setDescription('The user whose profile you want to view')
+                .setRequired(false)),
 
     async execute(interaction) {
-        const selectedUser = interaction.options.getUser('user') || interaction.user;
-        const userId = selectedUser.id;
-        const userTag = selectedUser.tag;
+        try {
+            await interaction.deferReply();
 
-        // Load vehicle data for the user
-        const userFilePath = path.join(dataFolderPath, `${userId}.json`);
-        const policeRecordFilePath = path.join(policeRecordsDirPath, `${userId}.json`);
-        const licenseFilePath = path.join(licensesDirPath, `${userId}.json`);
-        const ticketFilePath = path.join(ticketsDirPath, `${userId}.json`);
+            const targetUser = interaction.options.getUser('user') || interaction.user;
+            const userId = targetUser.id;
 
-        let vehicleData = [];
-        if (fs.existsSync(userFilePath)) {
-            vehicleData = JSON.parse(fs.readFileSync(userFilePath, 'utf8'));
-        }
-
-        let policeRecords = [];
-        if (fs.existsSync(policeRecordFilePath)) {
-            policeRecords = JSON.parse(fs.readFileSync(policeRecordFilePath, 'utf8'));
-        }
-
-        let licenseStatus = 'Active'; // Default to "Active" if no license record exists
-        if (fs.existsSync(licenseFilePath)) {
-            const licenses = JSON.parse(fs.readFileSync(licenseFilePath, 'utf8'));
-            if (licenses.length > 0) {
-                const latestLicense = licenses[licenses.length - 1];
-                licenseStatus = `**Status:** ${latestLicense.status}\n**Date:** ${new Date(latestLicense.date).toLocaleString()}`;
+            // Load vehicle data
+            const userFilePath = path.join(dataFolderPath, `${userId}.json`);
+            let vehicleData = [];
+            if (fs.existsSync(userFilePath)) {
+                vehicleData = JSON.parse(fs.readFileSync(userFilePath, 'utf8'));
             }
-        }
+            const vehicleCount = vehicleData.length;
 
-        const vehicleList = vehicleData.length > 0
-            ? vehicleData.map((v, index) =>
-                `**${index + 1}.** Year: ${v.year}, Make: ${v.make}, Model: ${v.model}, Trim: ${v.trim}, Color: ${v.color}, Number Plate: ${v.numberPlate}`).join('\n')
-            : 'No vehicles registered.';
-
-        const arrestsList = policeRecords.length > 0
-            ? policeRecords.map((r, index) =>
-                `**${index + 1}.** Reason: ${r.reason}\nOffenses: ${r.offenses}\nPrice: ${r.price}\nExecuted By: ${r.executedBy}\nDate: ${new Date(r.date).toLocaleString()}`).join('\n\n')
-            : 'No arrests found.';
-
-        let ticketsList = 'No tickets found.';
-        if (fs.existsSync(ticketFilePath)) {
-            const tickets = JSON.parse(fs.readFileSync(ticketFilePath, 'utf8'));
-            if (tickets.length > 0) {
-                ticketsList = tickets.map((t, index) =>
-                    `**${index + 1}.** Offense: ${t.offense}\nPrice: ${t.price}\nCount: ${t.count}\nDate: ${new Date(t.date).toLocaleString()}`).join('\n\n');
+            // Load ticket data
+            const ticketsFilePath = path.join(ticketsDirPath, `${userId}.json`);
+            let tickets = [];
+            if (fs.existsSync(ticketsFilePath)) {
+                tickets = JSON.parse(fs.readFileSync(ticketsFilePath, 'utf8'));
             }
+
+            // Load license status
+            const licenseFilePath = path.join(licensesDirPath, `${userId}.json`);
+            let licenseStatus = 'Active'; // Default license status
+            if (fs.existsSync(licenseFilePath)) {
+                try {
+                    const licenseData = JSON.parse(fs.readFileSync(licenseFilePath, 'utf8'));
+                    licenseStatus = licenseData.status || 'Active'; // Default to 'Active' if no status is set
+                } catch (error) {
+                    console.error('Error reading license file:', error);
+                }
+            }
+
+            // Store data in the client object
+            interaction.client.vehicleData = interaction.client.vehicleData || {};
+            interaction.client.vehicleData[userId] = vehicleData;
+            interaction.client.ticketsData = interaction.client.ticketsData || {};
+            interaction.client.ticketsData[userId] = tickets;
+
+            // Profile embed
+            const profileEmbed = new EmbedBuilder()
+                .setTitle(`User's Profile`)
+                .setDescription(`**User**: <@${userId}>\n**Registered Vehicles**: **${vehicleCount} Vehicle(s)**\n**License Status**: **${licenseStatus}**`)
+                .setColor(`#f3eeee`)
+                .setThumbnail(targetUser.displayAvatarURL());
+
+            // Add buttons for additional actions
+            const buttons = [
+                new ButtonBuilder()
+                    .setCustomId(`show_registrations_${userId}`)
+                    .setLabel('Show Registrations')
+                    .setStyle(ButtonStyle.Primary),
+                new ButtonBuilder()
+                    .setCustomId(`show_tickets_${userId}`)
+                    .setLabel('Show Tickets')
+                    .setStyle(ButtonStyle.Secondary)
+            ];
+
+            const row = new ActionRowBuilder().addComponents(buttons);
+
+            await interaction.editReply({ embeds: [profileEmbed], components: [row] });
+
+        } catch (error) {
+            console.error('Error executing profile command:', error);
+            await interaction.editReply({ content: 'An error occurred while fetching the profile. Please try again later.' });
         }
-
-        const profileEmbed = new EmbedBuilder()
-            .setTitle(`${userTag}'s Profile`)
-            .setDescription(`
-                The following details contain information regarding the user's registered vehicles, arrest records, issued tickets, and current license status.
-
-                **Vehicles:**
-                ${vehicleList}
-
-                **Police Records:**
-                ${arrestsList}
-
-                **Tickets:**
-                ${ticketsList}
-
-                **License Status:**
-                ${licenseStatus}
-            `)
-            .setColor(`#f3eeee`)
-
-            .setThumbnail(selectedUser.displayAvatarURL());
-
-        await interaction.reply({ embeds: [profileEmbed] });
     },
 };
