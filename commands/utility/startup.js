@@ -18,9 +18,9 @@ module.exports = {
 
         const embed = new EmbedBuilder()
             .setTitle('Ruralville | Session Startup')
-            .setDescription(`<@${interaction.user.id}> is initiating a roleplay session. Please ensure you have reviewed the server information available in <#1283394336318558289>.
+            .setDescription(`<@${interaction.user.id}> is initiating a roleplay session. Please ensure you have reviewed the server information available in <#1232649682166222858>.
 
-Before participating, make sure your vehicle is properly registered. To register your vehicle, use the /register command in <#1283394674685382729>.
+Before participating, make sure your vehicle is properly registered. To register your vehicle, use the /register command in <#1284602669759070413>.
 
 This session will commence once this message receives ${reactions} or more reactions.`)
 .setImage("https://cdn.discordapp.com/attachments/1282347649055592540/1284416549091934249/Screenshot_2024-09-14_014413.png?ex=66e68da0&is=66e53c20&hm=e6152d448d9965a2868743cd3e82ff6a2028d6547f5b762b48082e94fbc8eafd&")
